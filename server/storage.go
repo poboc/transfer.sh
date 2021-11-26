@@ -374,7 +374,7 @@ func (s *GDrive) setupRoot() error {
 		MimeType: gdriveDirectoryMimeType,
 	}
 
-	di, err := s.service.Files.Create(dir).Fields("id").Do()
+	di, err := s.service.Files.Create(dir).SupportsAllDrives(true).Fields("id").Do()
 	if err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func (s *GDrive) hasChecksum(f *drive.File) bool {
 }
 
 func (s *GDrive) list(nextPageToken string, q string) (*drive.FileList, error) {
-	return s.service.Files.List().Fields("nextPageToken, files(id, name, mimeType)").Q(q).PageToken(nextPageToken).Do()
+	return s.service.Files.List().SupportsAllDrives(true).IncludeItemsFromAllDrives(true).Fields("nextPageToken, files(id, name, mimeType)").Q(q).PageToken(nextPageToken).Do()
 }
 
 func (s *GDrive) findID(filename string, token string) (string, error) {
@@ -401,7 +401,7 @@ func (s *GDrive) findID(filename string, token string) (string, error) {
 	filename = strings.Replace(filename, `"`, `\"`, -1)
 
 	fileID, tokenID, nextPageToken := "", "", ""
-
+	//q := fmt.Sprintf("'%s' in parents and name='%s' and mimeType='%s' and trashed=false", s.rootID, "3q2Lui", gdriveDirectoryMimeType)
 	q := fmt.Sprintf("'%s' in parents and name='%s' and mimeType='%s' and trashed=false", s.rootID, token, gdriveDirectoryMimeType)
 	l, err := s.list(nextPageToken, q)
 	if err != nil {
@@ -474,7 +474,7 @@ func (s *GDrive) Head(token string, filename string) (contentLength uint64, err 
 	}
 
 	var fi *drive.File
-	if fi, err = s.service.Files.Get(fileID).Fields("size").Do(); err != nil {
+	if fi, err = s.service.Files.Get(fileID).SupportsAllDrives(true).Fields("size").Do(); err != nil {
 		return
 	}
 
@@ -492,7 +492,7 @@ func (s *GDrive) Get(token string, filename string) (reader io.ReadCloser, conte
 	}
 
 	var fi *drive.File
-	fi, err = s.service.Files.Get(fileID).Fields("size", "md5Checksum").Do()
+	fi, err = s.service.Files.Get(fileID).SupportsAllDrives(true).Fields("size", "md5Checksum").Do()
 	if !s.hasChecksum(fi) {
 		err = fmt.Errorf("Cannot find file %s/%s", token, filename)
 		return
@@ -502,7 +502,7 @@ func (s *GDrive) Get(token string, filename string) (reader io.ReadCloser, conte
 
 	ctx := context.Background()
 	var res *http.Response
-	res, err = s.service.Files.Get(fileID).Context(ctx).Download()
+	res, err = s.service.Files.Get(fileID).SupportsAllDrives(true).Context(ctx).Download()
 	if err != nil {
 		return
 	}
@@ -515,7 +515,7 @@ func (s *GDrive) Get(token string, filename string) (reader io.ReadCloser, conte
 // Delete removes a file from storage
 func (s *GDrive) Delete(token string, filename string) (err error) {
 	metadata, _ := s.findID(fmt.Sprintf("%s.metadata", filename), token)
-	s.service.Files.Delete(metadata).Do()
+	s.service.Files.Delete(metadata).SupportsAllDrives(true).Do()
 
 	var fileID string
 	fileID, err = s.findID(filename, token)
@@ -523,7 +523,7 @@ func (s *GDrive) Delete(token string, filename string) (err error) {
 		return
 	}
 
-	err = s.service.Files.Delete(fileID).Do()
+	err = s.service.Files.Delete(fileID).SupportsAllDrives(true).Do()
 	return
 }
 
@@ -540,7 +540,7 @@ func (s *GDrive) Purge(days time.Duration) (err error) {
 
 	for 0 < len(l.Files) {
 		for _, fi := range l.Files {
-			err = s.service.Files.Delete(fi.Id).Do()
+			err = s.service.Files.Delete(fi.Id).SupportsAllDrives(true).Do()
 			if err != nil {
 				return
 			}
@@ -586,7 +586,7 @@ func (s *GDrive) Put(token string, filename string, reader io.Reader, contentTyp
 			MimeType: gdriveDirectoryMimeType,
 		}
 
-		di, err := s.service.Files.Create(dir).Fields("id").Do()
+		di, err := s.service.Files.Create(dir).SupportsAllDrives(true).Fields("id").Do()
 		if err != nil {
 			return err
 		}
@@ -602,7 +602,7 @@ func (s *GDrive) Put(token string, filename string, reader io.Reader, contentTyp
 	}
 
 	ctx := context.Background()
-	_, err = s.service.Files.Create(dst).Context(ctx).Media(reader, googleapi.ChunkSize(s.chunkSize)).Do()
+	_, err = s.service.Files.Create(dst).SupportsAllDrives(true).Context(ctx).Media(reader, googleapi.ChunkSize(s.chunkSize)).Do()
 
 	if err != nil {
 		return err
